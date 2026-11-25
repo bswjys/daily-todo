@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>데일리 투두</title>
+<meta name="theme-color" content="#F5F6F8">
+<meta name="description" content="달력에서 날짜를 고르고 매일의 할 일을 체크하는 심플한 투두리스트">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="투두">
+<link rel="stylesheet" href="./styles.css?v=1">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <h1>데일리 투두</h1>
+      <p class="brand-sub" id="todayLine">오늘</p>
+    </div>
+    <button class="ghost-btn" id="editBtn" type="button">항목 편집</button>
+  </header>
+
+  <main>
+    <!-- 달력 -->
+    <section class="card calendar-card" aria-label="월간 달력">
+      <div class="cal-head">
+        <h2 class="cal-title" id="calTitle">2026년 11월</h2>
+        <div class="cal-ctrl">
+          <button class="round-btn" id="prevMonth" type="button" aria-label="이전 달">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>
+          </button>
+          <button class="round-btn" id="nextMonth" type="button" aria-label="다음 달">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
+          </button>
+          <button class="today-btn" id="todayBtn" type="button">오늘</button>
+        </div>
+      </div>
+      <div class="weekdays" aria-hidden="true">
+        <span class="sun">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span>
+      </div>
+      <div class="days" id="dayGrid" role="group" aria-label="날짜 선택"></div>
+      <div class="legend" aria-hidden="true">
+        <span class="lg"><i class="sw lv1"></i>시작</span>
+        <span class="lg"><i class="sw lv2"></i>절반</span>
+        <span class="lg"><i class="sw lv3"></i>완료</span>
+      </div>
+    </section>
+
+    <!-- 그날의 투두 -->
+    <section class="card list-card" aria-label="할 일 목록">
+      <div class="summary">
+        <div class="summary-top">
+          <span class="summary-date" id="summaryDate">오늘</span>
+          <span class="summary-count"><b id="doneCount">0</b> / <span id="totalCount">12</span> 완료</span>
+        </div>
+        <div class="bar" role="progressbar" aria-labelledby="summaryDate" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="summaryBar">
+          <span id="barFill"></span>
+        </div>
+        <p class="summary-msg" id="summaryMsg">오늘 할 일을 하나씩 시작해 볼까요?</p>
+      </div>
+      <ul class="todo-list" id="todoList"></ul>
+    </section>
+
+    <p class="foot">체크와 메모는 이 기기에만 자동 저장돼요</p>
+  </main>
+</div>
+
+<!-- 항목 편집 시트 -->
+<div class="sheet-backdrop" id="sheetBackdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <div class="sheet-head">
+      <h2 id="sheetTitle">항목 편집</h2>
+      <button class="sheet-done" id="sheetClose" type="button">완료</button>
+    </div>
+    <div class="sheet-body">
+      <p class="sheet-note">이름을 고치거나 순서를 바꾸면 모든 날짜에 함께 반영돼요.</p>
+      <ul class="edit-list" id="editList"></ul>
+      <form class="add-form" id="addForm" autocomplete="off">
+        <input class="add-input" id="addInput" type="text" maxlength="30" placeholder="새 항목 추가" aria-label="새 항목 이름">
+        <button class="add-btn" id="addBtn" type="submit">추가</button>
+      </form>
+    </div>
+    <div class="sheet-foot">
+      <p class="foot-label">기록 백업</p>
+      <div class="backup-row">
+        <button class="outline-btn" id="exportBtn" type="button">JSON 내보내기</button>
+        <button class="outline-btn" id="importBtn" type="button">불러오기</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden>
+  <span class="toast-text" id="toastText"></span>
+  <button class="toast-btn" id="toastBtn" type="button" hidden>되돌리기</button>
+</div>
+
+<noscript><p style="padding:24px;text-align:center">이 앱을 쓰려면 자바스크립트를 켜 주세요.</p></noscript>
+<script src="./app.js?v=1"></script>
+</body>
+</html>

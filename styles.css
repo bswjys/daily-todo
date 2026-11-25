@@ -371,10 +371,15 @@ button { font: inherit; color: inherit; }
 .todo-main {
   grid-column: 2;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .todo-name {
   display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 14.5px;
   font-weight: 600;
   line-height: 28px;
@@ -390,28 +395,92 @@ button { font: inherit; color: inherit; }
   text-decoration-color: #C9D0D8;
 }
 
-.memo {
-  display: block;
-  width: 100%;
-  margin-top: 4px;
-  padding: 7px 10px;
+/* 그날만 추가한 항목의 지우기 버튼 */
+.todo-del {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink4);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.todo-del svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.todo-del:active { background: var(--line-soft); color: var(--ink2); }
+
+.todo.is-new { animation: row-in .26s cubic-bezier(.2, .8, .3, 1); }
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 맨 아래 빈칸 (그날 생각나는 일) ───────────────── */
+.quick-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 6px 2px;
+  padding: 10px 4px 4px;
+  border-top: 1px dashed var(--line);
+}
+
+.quick-plus {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 2px dashed #D7DDE4;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--ink4);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+  cursor: text;
+}
+
+.quick-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 7px 2px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.25px;
+  outline: none;
+}
+.quick-input::placeholder { color: #ADB5BD; font-weight: 500; }
+.quick-add:focus-within .quick-plus { border-color: #A9C8F5; color: var(--blue); }
+
+.quick-btn {
+  flex: none;
   border: 0;
   border-radius: 9px;
-  background: #F7F8FA;
-  color: var(--ink2);
-  font-family: inherit;
+  background: var(--blue-soft);
+  color: var(--blue-press);
   font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: -0.1px;
-  outline: none;
-  transition: background .15s ease, box-shadow .15s ease;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  padding: 7px 11px;
+  cursor: pointer;
 }
-.memo::placeholder { color: #ADB5BD; }
-.memo:focus {
-  background: #F1F6FE;
-  box-shadow: inset 0 0 0 1.5px #C6DCFB;
-}
-.todo.done .memo { color: var(--ink3); }
+.quick-btn:active { background: #DCEAFF; }
 
 .todo-list .empty {
   padding: 22px 10px 26px;
@@ -679,7 +748,8 @@ button { font: inherit; color: inherit; }
   .day.lv3:hover { background: var(--blue-press); }
   .check:hover { border-color: #B7C3D0; }
   .todo.done .check:hover { border-color: var(--blue-press); }
-  .memo:hover { background: #F2F4F6; }
+  .todo-del:hover { background: var(--line-soft); color: var(--ink2); }
+  .quick-btn:hover { background: #DCEAFF; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -691,6 +761,5 @@ button { font: inherit; color: inherit; }
 
 /* 아이폰 사파리는 16px 미만 입력창을 누르면 화면을 확대하므로 입력 글자를 16px로 둔다 */
 @supports (-webkit-touch-callout: none) {
-  .memo { font-size: 16px; padding: 6px 10px; }
-  .edit-name, .add-input { font-size: 16px; }
+  .edit-name, .add-input, .quick-input { font-size: 16px; }
 }

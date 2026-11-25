@@ -1,6 +1,9 @@
 /* 데일리 투두 — 개인용 달력 투두리스트
  * 데이터: localStorage 'daily-todo-v1' (기기 안에만 저장)
- *   { v, items:[{id,name}], days:{ 'YYYY-MM-DD': { done:{id:true}, memo:{id:'...'} } } }
+ *   { v, items:[{id,name}], days:{ 'YYYY-MM-DD': { done:{id:true}, extra:[{id,name}], memo:{id:'...'} } } }
+ *   - items: 모든 날짜에 공통인 기본 항목(항목 편집에서 관리)
+ *   - days[key].extra: 그날만의 '생각나는 일' 추가 목록
+ *   - days[key].memo: 예전 버전의 항목별 메모(화면에는 쓰지 않고, 지우지 않고 그대로 보존)
  */
 (() => {
   'use strict';
@@ -22,6 +25,8 @@
   ];
   const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
   const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 12.6l4.2 4.2 8.8-9.4"/></svg>';
+  const X_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>';
+  const NAME_MAX = 40;
 
   const pad = (n) => String(n).padStart(2, '0');
   const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -30,14 +35,16 @@
     return new Date(y, m - 1, d);
   };
   const todayKey = () => keyOf(new Date());
-  const uid = () => 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const rand = () => Math.random().toString(36).slice(2, 6);
+  const uid = () => 'i' + Date.now().toString(36) + rand();
+  const extraUid = () => 'e' + Date.now().toString(36) + rand();
 
   const $ = (sel) => document.querySelector(sel);
 
   /* ── 데이터 ───────────────────────────────────────── */
   function defaultState() {
     return {
-      v: 1,
+      v: 2,
       items: DEFAULT_NAMES.map((name, i) => ({ id: 'd' + (i + 1), name })),
       days: {}
     };
@@ -62,19 +69,42 @@
         if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return;
         const src = raw.days[k];
         if (!src || typeof src !== 'object') return;
-        const done = {};
+
+        // 그날만의 추가 항목
+        const extra = [];
+        const extraIds = new Set();
+        if (Array.isArray(src.extra)) {
+          src.extra.forEach((it, idx) => {
+            if (!it || typeof it.name !== 'string') return;
+            const name = it.name.trim().slice(0, NAME_MAX);
+            if (!name) return;
+            let id = typeof it.id === 'string' && it.id ? it.id : 'e' + idx + uid();
+            while (extraIds.has(id) || seen.has(id)) id = id + '_' + idx;
+            extraIds.add(id);
+            extra.push({ id, name });
+          });
+        }
+
+        // 예전 버전의 항목별 메모(화면에는 안 쓰지만 지우지 않고 보존)
         const memo = {};
-        Object.keys(src.done || {}).forEach((id) => {
-          if (src.done[id] === true && seen.has(id)) done[id] = true;
-        });
         Object.keys(src.memo || {}).forEach((id) => {
           const v = src.memo[id];
-          if (typeof v === 'string' && v.length && seen.has(id)) memo[id] = v.slice(0, 200);
+          if (typeof v === 'string' && v.length && (seen.has(id) || extraIds.has(id))) {
+            memo[id] = v.slice(0, 200);
+          }
         });
-        if (Object.keys(done).length || Object.keys(memo).length) days[k] = { done, memo };
+
+        const done = {};
+        Object.keys(src.done || {}).forEach((id) => {
+          if (src.done[id] === true && (seen.has(id) || extraIds.has(id))) done[id] = true;
+        });
+
+        if (Object.keys(done).length || Object.keys(memo).length || extra.length) {
+          days[k] = { done, extra, memo };
+        }
       });
     }
-    return { v: 1, items, days };
+    return { v: 2, items, days };
   }
 
   function loadState() {
@@ -100,17 +130,24 @@
   function dayOf(key, create) {
     let day = state.days[key];
     if (!day && create) {
-      day = { done: {}, memo: {} };
+      day = { done: {}, extra: [], memo: {} };
       state.days[key] = day;
     }
+    if (day && !Array.isArray(day.extra)) day.extra = [];
     return day;
   }
 
   function pruneDay(key) {
     const day = state.days[key];
-    if (day && !Object.keys(day.done).length && !Object.keys(day.memo).length) {
+    if (!day) return;
+    if (!Object.keys(day.done).length && !Object.keys(day.memo).length && !(day.extra || []).length) {
       delete state.days[key];
     }
+  }
+
+  function extrasOf(key) {
+    const day = state.days[key];
+    return day && Array.isArray(day.extra) ? day.extra : [];
   }
 
   /* ── 상태(화면) ────────────────────────────────────── */
@@ -119,15 +156,21 @@
   let view = { y: start.getFullYear(), m: start.getMonth() };
   let toastTimer = null;
   let undoAction = null;
+  let highlightId = null;
 
   /* ── 계산 ─────────────────────────────────────────── */
+  function idsFor(key) {
+    const ids = state.items.map((it) => it.id);
+    extrasOf(key).forEach((it) => ids.push(it.id));
+    return ids;
+  }
+
   function statsFor(key) {
     const day = state.days[key];
-    const total = state.items.length;
+    const ids = idsFor(key);
+    const total = ids.length;
     let count = 0;
-    if (day) {
-      for (const item of state.items) if (day.done[item.id]) count++;
-    }
+    if (day) for (const id of ids) if (day.done[id]) count++;
     const ratio = total ? count / total : 0;
     let level = 0;
     if (total && ratio === 1) level = 3;
@@ -205,7 +248,7 @@
     let text;
     if (!st.total) {
       countEl.classList.remove('done-all');
-      text = '항목이 없어요. 오른쪽 위 ‘항목 편집’에서 추가해 보세요.';
+      text = '항목이 없어요. 아래 빈칸에 적거나 ‘항목 편집’에서 추가해 보세요.';
       msg.classList.remove('all');
     } else if (st.count === st.total) {
       countEl.classList.add('done-all');
@@ -223,12 +266,12 @@
   /* ── 목록 ─────────────────────────────────────────── */
   const todoList = $('#todoList');
 
-  function buildRow(item, day) {
+  function buildRow(item, day, isExtra) {
     const done = !!(day && day.done[item.id]);
-    const memoVal = (day && day.memo[item.id]) || '';
 
     const li = document.createElement('li');
-    li.className = 'todo' + (done ? ' done' : '');
+    li.className = 'todo' + (done ? ' done' : '') + (isExtra ? ' todo-extra' : '');
+    if (item.id === highlightId) li.classList.add('is-new');
     li.dataset.id = item.id;
 
     const check = document.createElement('button');
@@ -247,50 +290,59 @@
     name.className = 'todo-name';
     name.textContent = item.name;
 
-    const memo = document.createElement('input');
-    memo.type = 'text';
-    memo.className = 'memo';
-    memo.dataset.act = 'memo';
-    memo.placeholder = '메모...';
-    memo.maxLength = 200;
-    memo.autocomplete = 'off';
-    memo.spellcheck = false;
-    memo.value = memoVal;
-    memo.setAttribute('aria-label', `${item.name} 메모`);
+    main.append(name);
 
-    main.append(name, memo);
+    if (isExtra) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'todo-del';
+      del.dataset.act = 'del-extra';
+      del.setAttribute('aria-label', `${item.name} 지우기`);
+      del.title = '지우기';
+      del.innerHTML = X_SVG;
+      main.append(del);
+    }
+
     li.append(check, main);
     return li;
   }
 
   function renderList() {
     const day = state.days[selected];
+    const extras = extrasOf(selected);
     todoList.innerHTML = '';
-    if (!state.items.length) {
+
+    if (!state.items.length && !extras.length) {
       const empty = document.createElement('li');
       empty.className = 'empty';
-      empty.innerHTML = '아직 항목이 없어요.<br>오른쪽 위 <b>항목 편집</b>에서 하나씩 추가해 보세요.';
+      empty.innerHTML = '아직 항목이 없어요.<br>아래 빈칸에 적거나 <b>항목 편집</b>에서 추가해 보세요.';
       todoList.appendChild(empty);
+      highlightId = null;
       return;
     }
+
     const frag = document.createDocumentFragment();
-    for (const item of state.items) frag.appendChild(buildRow(item, day));
+    for (const item of state.items) frag.appendChild(buildRow(item, day, false));
+    for (const item of extras) frag.appendChild(buildRow(item, day, true));
     todoList.appendChild(frag);
+    highlightId = null;
   }
 
   function setChecked(li, on, animate) {
     const item = state.items.find((it) => it.id === li.dataset.id);
+    const extra = item ? null : extrasOf(selected).find((it) => it.id === li.dataset.id);
+    const label = item ? item.name : (extra ? extra.name : '');
     const check = li.querySelector('.check');
     li.classList.toggle('done', on);
     if (check) {
       check.setAttribute('aria-checked', on ? 'true' : 'false');
+      if (label) check.setAttribute('aria-label', `${label} 완료`);
       if (animate) {
         check.classList.remove('pop');
         void check.offsetWidth;
         check.classList.add('pop');
       }
     }
-    if (item) check && check.setAttribute('aria-label', `${item.name} 완료`);
   }
 
   function toggleItem(id, animate) {
@@ -307,13 +359,39 @@
     renderCalendar();
   }
 
-  function setMemo(id, value) {
+  /* ── 그날만의 추가 항목 ────────────────────────────── */
+  function addExtra(name) {
+    const v = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX);
+    if (!v) return;
     const day = dayOf(selected, true);
-    const v = value.slice(0, 200);
-    if (v.trim()) day.memo[id] = v;
-    else delete day.memo[id];
+    const item = { id: extraUid(), name: v };
+    day.extra.push(item);
+    highlightId = item.id;
+    save();
+    renderList();
+    renderSummary();
+    renderCalendar();
+    const row = todoList.querySelector(`.todo[data-id="${CSS.escape(item.id)}"]`);
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+  }
+
+  function removeExtra(id) {
+    const day = state.days[selected];
+    if (!day || !Array.isArray(day.extra)) return;
+    const idx = day.extra.findIndex((it) => it.id === id);
+    if (idx < 0) return;
+    const snapshot = JSON.parse(JSON.stringify(state));
+    const removed = day.extra[idx];
+    day.extra.splice(idx, 1);
+    delete day.done[id];
     pruneDay(selected);
     save();
+    renderAll();
+    showToast(`‘${removed.name}’을 지웠어요`, '되돌리기', () => {
+      state = snapshot;
+      save();
+      renderAll();
+    });
   }
 
   /* ── 이벤트: 달력/목록 ─────────────────────────────── */
@@ -356,17 +434,32 @@
   });
 
   todoList.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-act="del-extra"]');
+    if (del) {
+      const li = del.closest('.todo');
+      if (li) removeExtra(li.dataset.id);
+      return;
+    }
     const btn = e.target.closest('[data-act="toggle"]');
     if (!btn) return;
     const li = btn.closest('.todo');
     if (li) toggleItem(li.dataset.id, true);
   });
 
-  todoList.addEventListener('input', (e) => {
-    const input = e.target.closest('.memo');
-    if (!input) return;
-    const li = input.closest('.todo');
-    if (li) setMemo(li.dataset.id, input.value);
+  /* ── 맨 아래 빈칸: 그날 생각나는 일 ─────────────────── */
+  const quickForm = $('#quickAdd');
+  const quickInput = $('#quickInput');
+
+  quickForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = quickInput.value;
+    if (!name.trim()) {
+      quickInput.focus();
+      return;
+    }
+    addExtra(name);
+    quickInput.value = '';
+    quickInput.focus({ preventScroll: true });
   });
 
   /* ── 편집 시트 ─────────────────────────────────────── */
@@ -483,8 +576,6 @@
       if (name && name.textContent !== item.name) name.textContent = item.name;
       const check = li.querySelector('.check');
       if (check) check.setAttribute('aria-label', `${item.name} 완료`);
-      const memo = li.querySelector('.memo');
-      if (memo) memo.setAttribute('aria-label', `${item.name} 메모`);
     });
   }
 
@@ -557,7 +648,7 @@
   $('#exportBtn').addEventListener('click', () => {
     const payload = {
       app: 'daily-todo',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       items: state.items,
       days: state.days

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>데일리 투두</title>
 <meta name="theme-color" content="#F5F6F8">
-<meta name="description" content="달력에서 날짜를 고르고 매일의 할 일을 체크하는 심플한 투두리스트">
+<meta name="description" content="달력에서 날짜를 고르고 매일의 할 일과 예정사항을 체크하는 심플한 투두리스트">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
@@ -13,7 +13,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="투두">
-<link rel="stylesheet" href="./styles.css?v=2">
+<link rel="stylesheet" href="./styles.css?v=3">
 </head>
 <body>
 <div class="app">
@@ -48,28 +48,64 @@
         <span class="lg"><i class="sw lv1"></i>시작</span>
         <span class="lg"><i class="sw lv2"></i>절반</span>
         <span class="lg"><i class="sw lv3"></i>완료</span>
+        <span class="lg"><i class="sw plan-dot"></i>예정</span>
       </div>
     </section>
 
-    <!-- 그날의 투두 -->
-    <section class="card list-card" aria-label="할 일 목록">
-      <div class="summary">
+    <!-- 오늘 루틴 -->
+    <section class="card list-card" id="routineCard" aria-label="오늘 할 일">
+      <div class="card-head summary" id="routineHead">
         <div class="summary-top">
-          <span class="summary-date" id="summaryDate">오늘</span>
-          <span class="summary-count"><b id="doneCount">0</b> / <span id="totalCount">12</span> 완료</span>
+          <div class="summary-title">
+            <span class="summary-date" id="summaryDate">오늘</span>
+            <span class="summary-sub" id="summarySub">11월 26일 (목)</span>
+          </div>
+          <div class="summary-right">
+            <span class="summary-count"><b id="doneCount">0</b> / <span id="totalCount">12</span> 완료</span>
+            <button class="fold-btn" id="routineFold" type="button"
+                    aria-controls="routineBody" aria-expanded="true" aria-label="할 일 목록 접기">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg>
+            </button>
+          </div>
         </div>
         <div class="bar" role="progressbar" aria-labelledby="summaryDate" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="summaryBar">
           <span id="barFill"></span>
         </div>
-        <p class="summary-msg" id="summaryMsg">오늘 할 일을 하나씩 시작해 볼까요?</p>
       </div>
-      <ul class="todo-list" id="todoList"></ul>
-      <form class="quick-add" id="quickAdd" autocomplete="off">
-        <label class="quick-plus" for="quickInput" aria-hidden="true">+</label>
-        <input class="quick-input" id="quickInput" type="text" maxlength="40"
-               placeholder="생각나는 일을 적어보세요" aria-label="그날 생각나는 일 추가" enterkeyhint="done">
-        <button class="quick-btn" id="quickBtn" type="submit">추가</button>
-      </form>
+      <div class="card-body" id="routineBody">
+        <p class="summary-msg" id="summaryMsg">오늘 할 일을 하나씩 시작해 볼까요?</p>
+        <ul class="todo-list" id="todoList"></ul>
+        <form class="quick-add" id="quickAdd" autocomplete="off">
+          <label class="quick-plus" for="quickInput" aria-hidden="true">+</label>
+          <input class="quick-input" id="quickInput" type="text" maxlength="40"
+                 placeholder="생각나는 일을 적어보세요" aria-label="그날 생각나는 일 추가" enterkeyhint="done">
+          <button class="quick-btn" id="quickBtn" type="submit">추가</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 예정사항 -->
+    <section class="card plan-card" id="planCard" aria-label="예정사항">
+      <div class="card-head plan-head" id="planHead">
+        <div class="plan-title-wrap">
+          <i class="plan-mark" aria-hidden="true"></i>
+          <h2 class="plan-title">예정사항</h2>
+          <span class="plan-badge" id="planBadge">0건</span>
+        </div>
+        <button class="fold-btn" id="planFold" type="button"
+                aria-controls="planBody" aria-expanded="true" aria-label="예정사항 접기">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg>
+        </button>
+      </div>
+      <div class="card-body" id="planBody">
+        <ul class="todo-list plan-list" id="planList"></ul>
+        <form class="quick-add plan-add" id="planAdd" autocomplete="off">
+          <label class="quick-plus" for="planInput" aria-hidden="true">+</label>
+          <input class="quick-input" id="planInput" type="text" maxlength="40"
+                 placeholder="예정사항을 적어보세요" aria-label="예정사항 추가" enterkeyhint="done">
+          <button class="quick-btn" id="planBtn" type="submit">추가</button>
+        </form>
+      </div>
     </section>
 
     <p class="foot">체크와 추가한 일은 이 기기에만 자동 저장돼요</p>
@@ -109,6 +145,6 @@
 </div>
 
 <noscript><p style="padding:24px;text-align:center">이 앱을 쓰려면 자바스크립트를 켜 주세요.</p></noscript>
-<script src="./app.js?v=2"></script>
+<script src="./app.js?v=3"></script>
 </body>
 </html>

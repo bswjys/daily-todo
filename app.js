@@ -1,9 +1,11 @@
 /* 데일리 투두 — 개인용 달력 투두리스트
  * 데이터: localStorage 'daily-todo-v1' (기기 안에만 저장)
- *   { v, items:[{id,name}], days:{ 'YYYY-MM-DD': { done:{id:true}, extra:[{id,name}], memo:{id:'...'} } } }
+ *   { v, items:[{id,name}], days:{ 'YYYY-MM-DD': { done:{id:true}, extra:[{id,name}], plans:[{id,name,done}], memo:{id:'...'} } } }
  *   - items: 모든 날짜에 공통인 기본 항목(항목 편집에서 관리)
  *   - days[key].extra: 그날만의 '생각나는 일' 추가 목록
+ *   - days[key].plans: 그날의 '예정사항' — 루틴 달성률·달력 색과 섞지 않고 따로 관리
  *   - days[key].memo: 예전 버전의 항목별 메모(화면에는 쓰지 않고, 지우지 않고 그대로 보존)
+ * 화면 설정: localStorage 'daily-todo-ui' { routineCollapsed, planCollapsed }
  */
 (() => {
   'use strict';
@@ -27,6 +29,7 @@
   const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 12.6l4.2 4.2 8.8-9.4"/></svg>';
   const X_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>';
   const NAME_MAX = 40;
+  const UI_KEY = 'daily-todo-ui';
 
   const pad = (n) => String(n).padStart(2, '0');
   const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -44,7 +47,7 @@
   /* ── 데이터 ───────────────────────────────────────── */
   function defaultState() {
     return {
-      v: 2,
+      v: 3,
       items: DEFAULT_NAMES.map((name, i) => ({ id: 'd' + (i + 1), name })),
       days: {}
     };
@@ -85,6 +88,21 @@
           });
         }
 
+        // 그날의 예정사항(루틴과 별도 관리)
+        const plans = [];
+        const planIds = new Set();
+        if (Array.isArray(src.plans)) {
+          src.plans.forEach((it, idx) => {
+            if (!it || typeof it.name !== 'string') return;
+            const name = it.name.trim().slice(0, NAME_MAX);
+            if (!name) return;
+            let id = typeof it.id === 'string' && it.id ? it.id : 'p' + idx + uid();
+            while (planIds.has(id)) id = id + '_' + idx;
+            planIds.add(id);
+            plans.push({ id, name, done: it.done === true });
+          });
+        }
+
         // 예전 버전의 항목별 메모(화면에는 안 쓰지만 지우지 않고 보존)
         const memo = {};
         Object.keys(src.memo || {}).forEach((id) => {
@@ -99,12 +117,12 @@
           if (src.done[id] === true && (seen.has(id) || extraIds.has(id))) done[id] = true;
         });
 
-        if (Object.keys(done).length || Object.keys(memo).length || extra.length) {
-          days[k] = { done, extra, memo };
+        if (Object.keys(done).length || Object.keys(memo).length || extra.length || plans.length) {
+          days[k] = { done, extra, memo, plans };
         }
       });
     }
-    return { v: 2, items, days };
+    return { v: 3, items, days };
   }
 
   function loadState() {
@@ -130,17 +148,19 @@
   function dayOf(key, create) {
     let day = state.days[key];
     if (!day && create) {
-      day = { done: {}, extra: [], memo: {} };
+      day = { done: {}, extra: [], memo: {}, plans: [] };
       state.days[key] = day;
     }
     if (day && !Array.isArray(day.extra)) day.extra = [];
+    if (day && !Array.isArray(day.plans)) day.plans = [];
     return day;
   }
 
   function pruneDay(key) {
     const day = state.days[key];
     if (!day) return;
-    if (!Object.keys(day.done).length && !Object.keys(day.memo).length && !(day.extra || []).length) {
+    if (!Object.keys(day.done).length && !Object.keys(day.memo).length &&
+        !(day.extra || []).length && !(day.plans || []).length) {
       delete state.days[key];
     }
   }
@@ -150,6 +170,11 @@
     return day && Array.isArray(day.extra) ? day.extra : [];
   }
 
+  function plansOf(key) {
+    const day = state.days[key];
+    return day && Array.isArray(day.plans) ? day.plans : [];
+  }
+
   /* ── 상태(화면) ────────────────────────────────────── */
   let selected = todayKey();
   const start = parseKey(selected);
@@ -157,6 +182,7 @@
   let toastTimer = null;
   let undoAction = null;
   let highlightId = null;
+  let highlightPlanId = null;
 
   /* ── 계산 ─────────────────────────────────────────── */
   function idsFor(key) {
@@ -177,6 +203,15 @@
     else if (ratio >= 0.5) level = 2;
     else if (ratio > 0) level = 1;
     return { count, total, ratio, level };
+  }
+
+  /* 예정사항은 루틴 달성률과 별개로 센다 */
+  function planStatsFor(key) {
+    const plans = plansOf(key);
+    const total = plans.length;
+    let done = 0;
+    for (const p of plans) if (p.done) done++;
+    return { total, done, left: total - done };
   }
 
   function labelFor(key) {
@@ -213,12 +248,15 @@
       }
       const key = `${view.y}-${pad(view.m + 1)}-${pad(num)}`;
       const st = statsFor(key);
+      const ps = planStatsFor(key);
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'day lv' + st.level + (key === selected ? ' sel' : '') + (key === tKey ? ' today' : '');
       btn.dataset.date = key;
       btn.setAttribute('aria-pressed', key === selected ? 'true' : 'false');
-      btn.setAttribute('aria-label', `${view.m + 1}월 ${num}일 ${WEEK[i % 7]}요일, ${st.total}개 중 ${st.count}개 완료`);
+      btn.setAttribute('aria-label',
+        `${view.m + 1}월 ${num}일 ${WEEK[i % 7]}요일, ${st.total}개 중 ${st.count}개 완료` +
+        (ps.total ? `, 예정사항 ${ps.total}건 중 ${ps.done}건 완료` : ''));
 
       const numEl = document.createElement('span');
       numEl.className = 'num';
@@ -227,7 +265,13 @@
       markEl.className = 'mark';
       markEl.setAttribute('aria-hidden', 'true');
       if (st.level === 3) markEl.textContent = '✓';
-      btn.append(numEl, markEl);
+
+      // 예정사항이 등록된 날짜의 작은 점 (남은 게 있으면 주황, 다 끝났으면 회색)
+      const dotEl = document.createElement('span');
+      dotEl.className = 'dot' + (ps.total ? (ps.left ? '' : ' done') : ' off');
+      dotEl.setAttribute('aria-hidden', 'true');
+
+      btn.append(numEl, markEl, dotEl);
       frag.appendChild(btn);
     }
     dayGrid.innerHTML = '';
@@ -237,7 +281,18 @@
   /* ── 요약 ─────────────────────────────────────────── */
   function renderSummary() {
     const st = statsFor(selected);
-    $('#summaryDate').textContent = labelFor(selected);
+    const label = labelFor(selected);
+    $('#summaryDate').textContent = label;
+
+    const sub = $('#summarySub');
+    if (label === '오늘' || label === '내일' || label === '어제') {
+      const d = parseKey(selected);
+      sub.textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEK[d.getDay()]})`;
+      sub.hidden = false;
+    } else {
+      sub.hidden = true;
+    }
+
     $('#doneCount').textContent = String(st.count);
     $('#totalCount').textContent = String(st.total);
     $('#summaryBar').setAttribute('aria-valuenow', String(Math.round(st.ratio * 100)));
@@ -261,6 +316,7 @@
       else text = `${st.total - st.count}개 남았어요. 이대로만 가요!`;
     }
     msg.textContent = text;
+    renderPlanBadge();
   }
 
   /* ── 목록 ─────────────────────────────────────────── */
@@ -394,6 +450,255 @@
     });
   }
 
+  /* ── 예정사항 (루틴 달성률과 별도) ────────────────── */
+  const planList = $('#planList');
+
+  function buildPlanRow(plan) {
+    const li = document.createElement('li');
+    li.className = 'todo plan' + (plan.done ? ' done' : '');
+    if (plan.id === highlightPlanId) li.classList.add('is-new');
+    li.dataset.id = plan.id;
+
+    const check = document.createElement('button');
+    check.type = 'button';
+    check.className = 'check';
+    check.dataset.act = 'plan-toggle';
+    check.setAttribute('role', 'checkbox');
+    check.setAttribute('aria-checked', plan.done ? 'true' : 'false');
+    check.setAttribute('aria-label', `${plan.name} 완료`);
+    check.innerHTML = CHECK_SVG;
+
+    const main = document.createElement('div');
+    main.className = 'todo-main plan-main';
+
+    const name = document.createElement('span');
+    name.className = 'todo-name';
+    name.textContent = plan.name;
+
+    const actions = document.createElement('div');
+    actions.className = 'plan-actions';
+
+    // 미완료 항목만 다음 날로 미룰 수 있다
+    const later = document.createElement('button');
+    later.type = 'button';
+    later.className = 'plan-later';
+    later.dataset.act = 'plan-later';
+    later.innerHTML = '<span class="arw" aria-hidden="true">→</span>내일';
+    later.setAttribute('aria-label', `${plan.name} 내일로 미루기`);
+    later.title = '내일로 미루기';
+    later.hidden = plan.done;
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'todo-del';
+    del.dataset.act = 'plan-del';
+    del.setAttribute('aria-label', `${plan.name} 지우기`);
+    del.title = '지우기';
+    del.innerHTML = X_SVG;
+
+    actions.append(later, del);
+    main.append(name, actions);
+    li.append(check, main);
+    return li;
+  }
+
+  function renderPlanBadge() {
+    const badge = $('#planBadge');
+    if (!badge) return;
+    const ps = planStatsFor(selected);
+    badge.classList.remove('left', 'all');
+    if (!ps.total) {
+      badge.textContent = '0건';
+    } else if (!ps.left) {
+      badge.textContent = '모두 완료';
+      badge.classList.add('all');
+    } else {
+      badge.textContent = `남은 ${ps.left}건`;
+      badge.classList.add('left');
+    }
+  }
+
+  function renderPlans() {
+    const plans = plansOf(selected);
+    planList.innerHTML = '';
+
+    if (!plans.length) {
+      const empty = document.createElement('li');
+      empty.className = 'empty';
+      empty.innerHTML = '아직 예정사항이 없어요.<br>아래 빈칸에 적으면 달력에도 표시돼요.';
+      planList.appendChild(empty);
+    } else {
+      const frag = document.createDocumentFragment();
+      for (const plan of plans) frag.appendChild(buildPlanRow(plan));
+      planList.appendChild(frag);
+    }
+    highlightPlanId = null;
+    renderPlanBadge();
+  }
+
+  function addPlan(name) {
+    const v = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX);
+    if (!v) return;
+    const day = dayOf(selected, true);
+    const plan = { id: 'p' + Date.now().toString(36) + rand(), name: v, done: false };
+    day.plans.push(plan);
+    highlightPlanId = plan.id;
+    save();
+    renderPlans();
+    renderCalendar();
+    const row = planList.querySelector(`.todo[data-id="${CSS.escape(plan.id)}"]`);
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+  }
+
+  function togglePlan(id, animate) {
+    const day = dayOf(selected, true);
+    const plan = day.plans.find((p) => p.id === id);
+    if (!plan) return;
+    plan.done = !plan.done;
+    pruneDay(selected);
+    save();
+
+    const li = planList.querySelector(`.todo[data-id="${CSS.escape(id)}"]`);
+    if (li) {
+      li.classList.toggle('done', plan.done);
+      const check = li.querySelector('.check');
+      if (check) {
+        check.setAttribute('aria-checked', plan.done ? 'true' : 'false');
+        if (animate) {
+          check.classList.remove('pop');
+          void check.offsetWidth;
+          check.classList.add('pop');
+        }
+      }
+      const later = li.querySelector('[data-act="plan-later"]');
+      if (later) later.hidden = plan.done;
+    }
+    renderPlanBadge();
+    renderCalendar();
+  }
+
+  // 다음 날(date + 1일) 예정사항으로 옮긴다 — 되돌리기 토스트
+  function postponePlan(id) {
+    const day = dayOf(selected, true);
+    const idx = day.plans.findIndex((p) => p.id === id);
+    if (idx < 0) return;
+    const snapshot = JSON.parse(JSON.stringify(state));
+    const plan = day.plans[idx];
+    day.plans.splice(idx, 1);
+
+    const next = parseKey(selected);
+    next.setDate(next.getDate() + 1);
+    const nextDay = dayOf(keyOf(next), true);
+    nextDay.plans.push({ id: 'p' + Date.now().toString(36) + rand(), name: plan.name, done: false });
+
+    pruneDay(selected);
+    save();
+    renderPlans();
+    renderCalendar();
+
+    const label = selected === todayKey() ? '내일' : '다음 날';
+    showToast(`‘${plan.name}’을 ${label}로 미뤘어요`, '되돌리기', () => {
+      state = snapshot;
+      save();
+      renderAll();
+    });
+  }
+
+  function removePlan(id) {
+    const day = state.days[selected];
+    if (!day || !Array.isArray(day.plans)) return;
+    const idx = day.plans.findIndex((p) => p.id === id);
+    if (idx < 0) return;
+    const snapshot = JSON.parse(JSON.stringify(state));
+    const removed = day.plans[idx];
+    day.plans.splice(idx, 1);
+    pruneDay(selected);
+    save();
+    renderPlans();
+    renderCalendar();
+    showToast(`‘${removed.name}’을 지웠어요`, '되돌리기', () => {
+      state = snapshot;
+      save();
+      renderAll();
+    });
+  }
+
+  planList.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const li = btn.closest('.todo');
+    if (!li) return;
+    const id = li.dataset.id;
+    if (btn.dataset.act === 'plan-toggle') togglePlan(id, true);
+    else if (btn.dataset.act === 'plan-later') postponePlan(id);
+    else if (btn.dataset.act === 'plan-del') removePlan(id);
+  });
+
+  const planForm = $('#planAdd');
+  const planInput = $('#planInput');
+
+  planForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = planInput.value;
+    if (!name.trim()) {
+      planInput.focus();
+      return;
+    }
+    addPlan(name);
+    planInput.value = '';
+    planInput.focus({ preventScroll: true });
+  });
+
+  /* ── 카드 접기/펴기 (설정은 기기에 기억) ───────────── */
+  function loadUi() {
+    try {
+      const raw = localStorage.getItem(UI_KEY);
+      if (!raw) return {};
+      const o = JSON.parse(raw);
+      return o && typeof o === 'object' ? o : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  const ui = loadUi();
+  const folded = {
+    routine: ui.routineCollapsed === true,
+    plan: ui.planCollapsed === true
+  };
+
+  function saveUi() {
+    try {
+      localStorage.setItem(UI_KEY, JSON.stringify({
+        routineCollapsed: folded.routine,
+        planCollapsed: folded.plan
+      }));
+    } catch (e) {
+      /* 저장 공간이 없는 경우는 조용히 넘어간다 */
+    }
+  }
+
+  function applyFold(which) {
+    const isRoutine = which === 'routine';
+    const card = document.getElementById(isRoutine ? 'routineCard' : 'planCard');
+    const body = document.getElementById(isRoutine ? 'routineBody' : 'planBody');
+    const btn = document.getElementById(isRoutine ? 'routineFold' : 'planFold');
+    const on = folded[which];
+    card.classList.toggle('collapsed', on);
+    body.hidden = on;
+    btn.setAttribute('aria-expanded', on ? 'false' : 'true');
+    btn.setAttribute('aria-label', (isRoutine ? '할 일 목록' : '예정사항') + (on ? ' 펴기' : ' 접기'));
+  }
+
+  function toggleFold(which) {
+    folded[which] = !folded[which];
+    saveUi();
+    applyFold(which);
+  }
+
+  $('#routineHead').addEventListener('click', () => toggleFold('routine'));
+  $('#planHead').addEventListener('click', () => toggleFold('plan'));
+
   /* ── 이벤트: 달력/목록 ─────────────────────────────── */
   dayGrid.addEventListener('click', (e) => {
     const btn = e.target.closest('.day');
@@ -409,6 +714,7 @@
     renderCalendar();
     renderList();
     renderSummary();
+    renderPlans();
   }
 
   $('#prevMonth').addEventListener('click', () => {
@@ -431,6 +737,7 @@
     renderCalendar();
     renderList();
     renderSummary();
+    renderPlans();
   });
 
   todoList.addEventListener('click', (e) => {
@@ -648,7 +955,7 @@
   $('#exportBtn').addEventListener('click', () => {
     const payload = {
       app: 'daily-todo',
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       items: state.items,
       days: state.days
@@ -738,6 +1045,7 @@
     renderCalendar();
     renderList();
     renderSummary();
+    renderPlans();
   }
 
   function renderHeaderDate() {
@@ -746,6 +1054,8 @@
   }
 
   renderHeaderDate();
+  applyFold('routine');
+  applyFold('plan');
   renderAll();
 
   /* 자정을 넘기면 '오늘' 표시를 새로 잡는다 */

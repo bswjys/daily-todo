@@ -99,6 +99,20 @@ def shift_key(pg, n):
     }""", n)
 
 
+def future_key(pg, n):
+    """오늘+n일. 달력이 이번 달만 그리므로 월말이면 이번 달 마지막 날로 붙인다."""
+    return pg.evaluate("""(n) => {
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + n);
+      const p = x => String(x).padStart(2,'0');
+      if (d.getMonth() !== now.getMonth()) {
+        const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return `${last.getFullYear()}-${p(last.getMonth()+1)}-${p(last.getDate())}`;
+      }
+      return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+    }""", n)
+
+
 def rows(pg):
     return pg.evaluate("""() => Array.from(document.querySelectorAll('#todoList .todo')).map(li => {
       const main = li.querySelector('.todo-main');
@@ -224,10 +238,10 @@ def main():
         check('달력 7칸 단위로 렌더', ncells % 7 == 0 and 35 <= ncells <= 42, ncells)
         check('기본 선택 = 오늘', pg.get_attribute('.day.sel', 'data-date') == tk)
         check('오늘 표시', 'today' in (day_cell(pg, tk) or {}).get('cls', ''))
-        check('index.html 마크업 v=4', pg.eval_on_selector('script[src]', 'e => e.getAttribute("src")').endswith('?v=4'))
-        check('styles.css v=4', pg.eval_on_selector('link[rel=stylesheet]', 'e => e.getAttribute("href")').endswith('?v=4'))
+        check('index.html 마크업 v=5', pg.eval_on_selector('script[src]', 'e => e.getAttribute("src")').endswith('?v=5'))
+        check('styles.css v=5', pg.eval_on_selector('link[rel=stylesheet]', 'e => e.getAttribute("href")').endswith('?v=5'))
         sw_txt = pg.evaluate("fetch('./sw.js').then(r => r.text())")
-        check('캐시 버전 daily-todo-v4', "'daily-todo-v4'" in sw_txt and "VERSION = '4'" in sw_txt)
+        check('캐시 버전 daily-todo-v5', "'daily-todo-v5'" in sw_txt and "VERSION = '5'" in sw_txt)
 
         r = rows(pg)
         check('기본 항목 12개', len(r) == 12, len(r))
@@ -698,7 +712,7 @@ def main():
         pg.click('#planList .todo:nth-child(2) .check')
         pg.wait_for_timeout(220)
         # 미래 날짜 예정사항(달력 점 확인용)
-        pg.click(f'.day[data-date="{shift_key(pg, 3)}"]')
+        pg.click(f'.day[data-date="{future_key(pg, 3)}"]')
         pg.wait_for_timeout(200)
         pg.fill('#planInput', '치과 예약')
         pg.press('#planInput', 'Enter')
@@ -710,8 +724,8 @@ def main():
         check('01 스크린샷 상태 4 / 14', summary(pg)['done'] == 4 and summary(pg)['total'] == 14, summary(pg))
         check('01 루틴 접힘', fold(pg, 'routine')['collapsed'])
         check('01 예정사항 3건', len(plan_rows(pg)) == 3, len(plan_rows(pg)))
-        check('01 미래 날짜 점', day_cell(pg, shift_key(pg, 3))['dot']['vis'] == 'visible',
-              day_cell(pg, shift_key(pg, 3))['dot'])
+        check('01 미래 날짜 점', day_cell(pg, future_key(pg, 3))['dot']['vis'] == 'visible',
+              day_cell(pg, future_key(pg, 3))['dot'])
         pg.evaluate('window.scrollTo(0, 0)')
         pg.wait_for_timeout(300)
         check('01 세 카드가 한 화면에', pg.evaluate("""() => {

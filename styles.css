@@ -1,4 +1,17 @@
 /* 데일리 투두 — 토스 스타일 미니멀 투두리스트 */
+/* ===== 모달·시트 화면 고정 (2026-11-28) =====
+   시트가 좌우·위아래로 흔들리지 않도록 백드롭은 배경 스크롤을 물고,
+   시트 안쪽만 세로로 스크롤한다. */
+.sheet-backdrop {
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.sheet, .sheet-body {
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
 
 :root {
   --blue: #3182F6;
@@ -37,7 +50,15 @@ body {
   min-height: 100vh;
 }
 
-body.sheet-open { overflow: hidden; }
+/* 모달·추가창 화면 고정 — top은 여는 순간의 스크롤 위치로 JS가 맞춘다 */
+body.modal-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 
 button { font: inherit; color: inherit; }
 

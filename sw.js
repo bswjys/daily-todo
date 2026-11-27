@@ -2,8 +2,8 @@
  *  - 화면(index.html), 코드(app.js, styles.css): 네트워크 우선 → 실패하면 캐시
  *  - 아이콘·manifest 등: 캐시 우선
  */
-const CACHE = 'daily-todo-v4';
-const VERSION = '4';
+const CACHE = 'daily-todo-v5';
+const VERSION = '5';
 const ASSETS = [
   './',
   './index.html',

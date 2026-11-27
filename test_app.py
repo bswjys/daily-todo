@@ -224,10 +224,10 @@ def main():
         check('달력 7칸 단위로 렌더', ncells % 7 == 0 and 35 <= ncells <= 42, ncells)
         check('기본 선택 = 오늘', pg.get_attribute('.day.sel', 'data-date') == tk)
         check('오늘 표시', 'today' in (day_cell(pg, tk) or {}).get('cls', ''))
-        check('index.html 마크업 v=3', pg.eval_on_selector('script[src]', 'e => e.getAttribute("src")').endswith('?v=3'))
-        check('styles.css v=3', pg.eval_on_selector('link[rel=stylesheet]', 'e => e.getAttribute("href")').endswith('?v=3'))
+        check('index.html 마크업 v=4', pg.eval_on_selector('script[src]', 'e => e.getAttribute("src")').endswith('?v=4'))
+        check('styles.css v=4', pg.eval_on_selector('link[rel=stylesheet]', 'e => e.getAttribute("href")').endswith('?v=4'))
         sw_txt = pg.evaluate("fetch('./sw.js').then(r => r.text())")
-        check('캐시 버전 daily-todo-v3', "'daily-todo-v3'" in sw_txt and "VERSION = '3'" in sw_txt)
+        check('캐시 버전 daily-todo-v4', "'daily-todo-v4'" in sw_txt and "VERSION = '4'" in sw_txt)
 
         r = rows(pg)
         check('기본 항목 12개', len(r) == 12, len(r))

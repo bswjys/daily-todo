@@ -535,7 +535,7 @@ button { font: inherit; color: inherit; }
   background: transparent;
   padding: 7px 2px;
   font-family: inherit;
-  font-size: 14.5px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   letter-spacing: -0.25px;
@@ -767,7 +767,7 @@ button { font: inherit; color: inherit; }
   background: #F7F8FA;
   padding: 9px 10px;
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   letter-spacing: -0.2px;
@@ -807,7 +807,7 @@ button { font: inherit; color: inherit; }
   background: #F2F4F6;
   padding: 11px 12px;
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   outline: none;
@@ -927,3 +927,16 @@ button { font: inherit; color: inherit; }
 @supports (-webkit-touch-callout: none) {
   .edit-name, .add-input, .quick-input { font-size: 16px; }
 }
+
+/* ===== 아이폰 화면 고정 (2026-11-28) =====
+   사파리·홈 화면 앱에서 화면이 커졌다 작아졌다 하지 않도록
+   - 입력창 글자는 16px 이상(아이폰 자동 확대 방지)
+   - 가로 넘침·바운스 스크롤 막음, 글자 자동 확대 막음 */
+html, body {
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html { touch-action: manipulation; }
+input, textarea, select { font-size: max(16px, 1em); }
